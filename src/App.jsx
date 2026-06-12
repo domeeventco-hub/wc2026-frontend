@@ -462,7 +462,7 @@ export default function App() {
             {/* Refresh button */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div style={{ fontSize: 9, letterSpacing: 3, color: "#444" }}>
-                {updated ? `UPDATED ${new Date(updated).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })} · AUTO 7PM DAILY` : "AUTO-REFRESH 7PM DAILY"}
+                {updated ? `LAST UPDATED ${new Date(updated).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}` : "NOT YET REFRESHED"}
               </div>
               {connected && (
                 <button onClick={triggerRefresh} disabled={refreshing} style={{
@@ -473,7 +473,7 @@ export default function App() {
                   cursor: refreshing ? "not-allowed" : "pointer",
                   fontFamily: "inherit", borderRadius: 3,
                 }}>
-                  {refreshing ? "⟳ REFRESHING..." : "⟳ REFRESH NOW"}
+                  {refreshing ? "⟳ FETCHING LATEST..." : "⟳ Refresh to get today's latest updates"}
                 </button>
               )}
             </div>
