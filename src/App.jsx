@@ -266,6 +266,7 @@ export default function App() {
   const [bankroll, setBankroll]     = useState({ starting: 1000, current: 1000, currency: "AUD" });
   const [lastUpdated, setLastUpdated] = useState({ nrl: null, wc: null });
   const [loading, setLoading]       = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [connected, setConnected]   = useState(false);
   const [bankrollInput, setBankrollInput] = useState("1000");
   const [filter, setFilter]         = useState("ALL");
@@ -318,6 +319,24 @@ export default function App() {
       }));
       setBankroll(prev => ({ ...prev, current: prev.current + profit }));
     }
+  };
+
+  const triggerRefresh = async () => {
+    if (!connected || refreshing) return;
+    setRefreshing(true);
+    await fetch(`${API_BASE}/refresh`, { method: "POST" });
+    // Poll until last_updated changes
+    const prevUpdated = lastUpdated[sport];
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      const res = await fetch(`${API_BASE}/${sport === "nrl" ? "nrl/" : ""}picks`).then(r => r.json());
+      if (res.last_updated !== prevUpdated || attempts > 24) {
+        clearInterval(poll);
+        await fetchData();
+        setRefreshing(false);
+      }
+    }, 5000);
   };
 
   const setBankrollAmount = async () => {
@@ -437,6 +456,25 @@ export default function App() {
         {/* ── PICKS TAB ── */}
         {tab === "picks" && (
           <div>
+            {/* Refresh button */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 9, letterSpacing: 3, color: "#444" }}>
+                {updated ? `UPDATED ${new Date(updated).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })} · AUTO 7PM DAILY` : "AUTO-REFRESH 7PM DAILY"}
+              </div>
+              {connected && (
+                <button onClick={triggerRefresh} disabled={refreshing} style={{
+                  padding: "6px 14px", fontSize: 10, letterSpacing: 2,
+                  background: refreshing ? "rgba(255,255,255,0.03)" : `${accentColor}18`,
+                  color: refreshing ? "#444" : accentColor,
+                  border: `1px solid ${refreshing ? "#222" : accentColor + "44"}`,
+                  cursor: refreshing ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", borderRadius: 3,
+                }}>
+                  {refreshing ? "⟳ REFRESHING..." : "⟳ REFRESH NOW"}
+                </button>
+              )}
+            </div>
+
             <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
               {["ALL", "BET", "WATCH", "NO BET"].map(f => (
                 <button key={f} onClick={() => setFilter(f)} style={{
