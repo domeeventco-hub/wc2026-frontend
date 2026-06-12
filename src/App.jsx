@@ -261,6 +261,9 @@ function PickCard({ pick, onResult, sport }) {
 export default function App() {
   const [sport, setSport]           = useState("nrl");
   const [tab, setTab]               = useState("picks");
+  const [multi, setMulti]           = useState(null);
+  const [multiLoading, setMultiLoading] = useState(false);
+  const [multiError, setMultiError] = useState(null);
   const [picks, setPicks]           = useState({ nrl: MOCK_NRL, wc: MOCK_WC });
   const [results, setResults]       = useState(MOCK_RESULTS);
   const [bankroll, setBankroll]     = useState({ starting: 1000, current: 1000, currency: "AUD" });
@@ -439,7 +442,7 @@ export default function App() {
         position: "sticky", top: 114, zIndex: 99,
         background: "rgba(6,10,15,0.97)", backdropFilter: "blur(12px)"
       }}>
-        {["picks", "tracker", "settings"].map(t => (
+        {["picks", "multi", "tracker", "settings"].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: "12px", fontSize: 10, letterSpacing: 3,
             background: "transparent",
@@ -526,6 +529,157 @@ export default function App() {
                 <div style={{ fontSize: 9, letterSpacing: 3, color: "#ffd700", marginBottom: 6 }}>DEMO MODE</div>
                 <div style={{ fontSize: 11, color: "#888", lineHeight: 1.7 }}>
                   Showing sample picks. Live AI picks are generated automatically every 15 minutes once the backend connects.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── MULTI TAB ── */}
+        {tab === "multi" && (
+          <div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 9, letterSpacing: 4, color: accentColor, marginBottom: 6 }}>
+                {sp.emoji} {sp.label} MULTI BUILDER
+              </div>
+              <div style={{ fontSize: 12, color: "#555", lineHeight: 1.7, marginBottom: 16 }}>
+                Claude selects the best legs from your current BET picks, calculates true probability of the multi hitting, and gives you a ready-to-use Sportsbet slip.
+              </div>
+              <button
+                onClick={async () => {
+                  setMultiLoading(true); setMultiError(null); setMulti(null);
+                  try {
+                    const res = await fetch(`${API_BASE}/multi?sport=${sport}`);
+                    const data = await res.json();
+                    if (data.multi) setMulti(data.multi);
+                    else setMultiError(data.reason || "Not enough BET picks to build a multi.");
+                  } catch {
+                    setMultiError("Could not connect to backend.");
+                  }
+                  setMultiLoading(false);
+                }}
+                disabled={multiLoading}
+                style={{
+                  width: "100%", padding: "14px", fontSize: 12, letterSpacing: 3, fontWeight: "bold",
+                  background: multiLoading ? "rgba(255,255,255,0.03)" : `${accentColor}18`,
+                  color: multiLoading ? "#444" : accentColor,
+                  border: `1px solid ${multiLoading ? "#222" : accentColor + "55"}`,
+                  cursor: multiLoading ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", borderRadius: 3,
+                }}
+              >
+                {multiLoading ? "⟳  BUILDING MULTI..." : "⚡  BUILD AI MULTI"}
+              </button>
+            </div>
+
+            {multiError && (
+              <div style={{ padding: "14px", background: "rgba(255,75,75,0.06)", border: "1px solid rgba(255,75,75,0.2)", borderRadius: 3, fontSize: 12, color: "#ff4b4b" }}>
+                {multiError}
+              </div>
+            )}
+
+            {multi && (() => {
+              const verdictColor = multi.verdict === "GOOD VALUE" ? "#00ff87" : multi.verdict === "MARGINAL" ? "#ffd700" : "#ff4b4b";
+              const payout = multi.potentialPayout || (multi.kellyStake * multi.combinedOdds);
+              return (
+                <div>
+                  {/* Verdict banner */}
+                  <div style={{
+                    padding: "14px 16px", marginBottom: 16,
+                    background: `${verdictColor}0d`, border: `1px solid ${verdictColor}33`, borderRadius: 4,
+                    display: "flex", justifyContent: "space-between", alignItems: "center"
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 9, letterSpacing: 4, color: verdictColor, marginBottom: 4 }}>MULTI VERDICT</div>
+                      <div style={{ fontSize: 18, fontWeight: "bold", color: verdictColor }}>{multi.verdict}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 9, letterSpacing: 3, color: "#555", marginBottom: 2 }}>HIT PROBABILITY</div>
+                      <div style={{ fontSize: 26, fontWeight: "bold", color: verdictColor }}>
+                        {Number(multi.combinedTrueProbability).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats row */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+                    {[
+                      { label: "COMBINED ODDS", value: Number(multi.combinedOdds).toFixed(2) },
+                      { label: "STAKE", value: fmt(multi.kellyStake) },
+                      { label: "POTENTIAL WIN", value: fmt(payout) },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ padding: "12px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 3, textAlign: "center" }}>
+                        <div style={{ fontSize: 8, letterSpacing: 2, color: "#444", marginBottom: 6 }}>{label}</div>
+                        <div style={{ fontSize: 16, fontWeight: "bold" }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Legs */}
+                  <div style={{ fontSize: 9, letterSpacing: 4, color: "#444", marginBottom: 10 }}>LEGS ({multi.legs?.length})</div>
+                  {multi.legs?.map((leg, i) => (
+                    <div key={i} style={{
+                      padding: "12px 14px", marginBottom: 8,
+                      background: "rgba(0,255,135,0.04)", border: "1px solid rgba(0,255,135,0.15)", borderRadius: 3,
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: "#555", marginBottom: 3 }}>LEG {i + 1} · {leg.market}</div>
+                          <div style={{ fontSize: 13, fontWeight: "bold", marginBottom: 2 }}>{leg.match}</div>
+                          <div style={{ fontSize: 12, color: "#00ff87" }}>{leg.bet}</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 18, fontWeight: "bold" }}>{Number(leg.odds).toFixed(2)}</div>
+                          <div style={{ fontSize: 10, color: "#555" }}>{leg.trueProbability}% true prob</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Why this multi */}
+                  <div style={{ padding: "14px", background: "rgba(255,255,255,0.02)", borderLeft: "2px solid #222", marginBottom: 12, borderRadius: "0 3px 3px 0" }}>
+                    <div style={{ fontSize: 9, letterSpacing: 3, color: "#444", marginBottom: 6 }}>WHY THIS MULTI</div>
+                    <div style={{ fontSize: 12, color: "#bbb", lineHeight: 1.8 }}>{multi.whyThisMulti}</div>
+                  </div>
+
+                  {/* Why it could fail */}
+                  <div style={{ padding: "14px", background: "rgba(255,75,75,0.04)", borderLeft: "2px solid rgba(255,75,75,0.3)", marginBottom: 16, borderRadius: "0 3px 3px 0" }}>
+                    <div style={{ fontSize: 9, letterSpacing: 3, color: "#ff4b4b", marginBottom: 6 }}>RISKS</div>
+                    <div style={{ fontSize: 12, color: "#bbb", lineHeight: 1.8 }}>{multi.whyItCouldFail}</div>
+                  </div>
+
+                  {/* Sportsbet slip */}
+                  <div style={{ padding: "14px", background: "rgba(255,215,0,0.05)", border: "1px solid rgba(255,215,0,0.2)", borderRadius: 3 }}>
+                    <div style={{ fontSize: 9, letterSpacing: 3, color: "#ffd700", marginBottom: 10 }}>📋 SPORTSBET SLIP</div>
+                    <div style={{ fontSize: 10, color: "#555", marginBottom: 10 }}>Enter these selections on Sportsbet as a Multi:</div>
+                    {multi.splusBetSlip?.map((line, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#e0e0e0", marginBottom: 6, padding: "6px 10px", background: "rgba(255,255,255,0.03)", borderRadius: 2 }}>
+                        {line}
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 12, padding: "8px 10px", background: "rgba(255,215,0,0.08)", borderRadius: 2 }}>
+                      <div style={{ fontSize: 11, color: "#ffd700", fontWeight: "bold" }}>
+                        Stake: {fmt(multi.kellyStake)} · Combined odds: {Number(multi.combinedOdds).toFixed(2)} · Potential return: {fmt(payout)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 10, color: "#333", marginTop: 10, lineHeight: 1.6 }}>
+                      Screenshot this slip before heading to Sportsbet. Odds may shift slightly — check before placing.
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 12, textAlign: "center", fontSize: 10, color: "#333" }}>
+                    Built {new Date(multi.builtAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}
+                    {" · "}
+                    <span style={{ cursor: "pointer", color: "#444" }} onClick={() => setMulti(null)}>rebuild ↺</span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {!multi && !multiLoading && !multiError && (
+              <div style={{ marginTop: 24, padding: "14px", background: "rgba(255,255,255,0.02)", border: "1px solid #222", borderRadius: 3 }}>
+                <div style={{ fontSize: 10, color: "#444", lineHeight: 1.8 }}>
+                  ⚠ Requires at least 2 active BET picks for the selected sport. Go to the PICKS tab and tap ⟳ Refresh Now if picks are empty.
                 </div>
               </div>
             )}
